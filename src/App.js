@@ -279,7 +279,7 @@ class App extends Component {
               </span>
            </li>)}
            <li onClick={() => changeRegionAction('data-pdf')}>
-               <span style={{ display: 'block' }}>data-pdf</span>
+               <span style={{ display: 'block', fontWeight: data.name === 'data-pdf' ? 'bold' : '' }}>data-pdf</span>
 
                { data.name === 'data-pdf' && 
                   <input placeholder="pdf name" 
