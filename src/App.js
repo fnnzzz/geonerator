@@ -1,8 +1,12 @@
-import React, { Component } from 'react';
+import React, { Component } from 'react'
+import RegionSelect from 'react-region-select'
+
 import backBtn from './images/back.png'
 import nextBtn from './images/next.png'
 import bankaBtn from './images/banka.png'
 import momBtn from './images/mom.png'
+
+
 
 const ACTIONS = [
   'data-return-back',
@@ -15,25 +19,42 @@ const actionHelper = (action) => {
   if(action.name === ACTIONS[0]) return ACTIONS[0]
   if(action.name === ACTIONS[1]) return `${ACTIONS[1]}="${action.slideName}"`
   if(action.name === ACTIONS[2]) return `${ACTIONS[2]}='{ "seqName": "${action.seqName}", "slideName": "${action.slideName}" }'`
+  if(action.name === 'data-pdf') return `data-pdf="${action.pdfName}"`
+  return ''
+}
+
+const hitBoxesBuilder = (regions) => {
+  const SLIDE_WIDTH = 1024
+  const SLIDE_HEIGHT = 768
+
+  const _calcDigitFromPercent = (from, percent) => Math.ceil((from * percent) / 100) + 1
+
+  return regions.map(r => {
+    const width = _calcDigitFromPercent(SLIDE_WIDTH, r.width)
+    const height = _calcDigitFromPercent(SLIDE_HEIGHT, r.height)
+    const top = _calcDigitFromPercent(SLIDE_HEIGHT, r.y)
+    const left = _calcDigitFromPercent(SLIDE_WIDTH, r.x)
+
+    const style = `width: ${width}px; height: ${height}px; left: ${left}px; top: ${top}px`
+
+    return `<p class="overlay-click-area" style="position: absolute; ${style}" ${actionHelper(r.data)}></p>`
+  }).join('\n\t\t\t')
 }
 
 const getMarkup = (p) => `
     <!-- * * * * * * * * * * * * START SLIDE * * * * * * * * * * * * -->
     <div class="container" data-slidename="${p.slideName}">
-        <img class="full-width-img" src="${p.img}">
+        <img class="full-width-img" src="media/images/${p.img || ''}">
 
         <div class="inner-container-upper">
-            <!--
-            <p class="overlay-click-area hit1" data-go-to-slide="Slide_1"></p>
-            <p class="overlay-click-area hit2" data-go-to-slide="Slide_2"></p>
-            -->
+            ${hitBoxesBuilder(p.regions)}
 
             <!-- NAVIGATION PANEL -->
             <div class="absolute-center-x nav-btn-wrap">
-                <img ${p.backBtn.show ? 'hidden' : ''} ${actionHelper(p.backBtn.action)} src="media/images/back.png" class="back-btn">
-                <img ${p.bankaBtn.show ? 'hidden' : ''} ${actionHelper(p.bankaBtn.action)} src="media/images/banka.png">
-                <img ${p.momBtn.show ? 'hidden' : ''} ${actionHelper(p.momBtn.action)} src="media/images/mom.png">
-                <img ${p.nextBtn.show ? 'hidden' : ''} ${actionHelper(p.nextBtn.action)} src="media/images/next.png" class="next-btn">
+                <img ${!p.backBtn.show ? 'hidden' : ''} ${actionHelper(p.backBtn.action)} src="media/images/back.png" class="back-btn">
+                <img ${!p.bankaBtn.show ? 'hidden' : ''} ${actionHelper(p.bankaBtn.action)} src="media/images/banka.png">
+                <img ${!p.momBtn.show ? 'hidden' : ''} ${actionHelper(p.momBtn.action)} src="media/images/mom.png">
+                <img ${!p.nextBtn.show ? 'hidden' : ''} ${actionHelper(p.nextBtn.action)} src="media/images/next.png" class="next-btn">
             </div>
         </div>
     </div>
@@ -117,6 +138,9 @@ class App extends Component {
     super()
 
     this.state = {
+      regions: [],
+      img: null,
+      slideName: '',
       controlPanelSelectedItem: null,
       navPanel: {
         backBtn: {
@@ -171,11 +195,129 @@ class App extends Component {
     this.setState(() => ({ controlPanelSelectedItem: id }))
   }
 
+  changeSlideName(e) {
+    const slideName = e.target.value
+    this.setState(() => ({ slideName }))
+  }
+
+  getMarkupAndCopy() {
+      if(!this.state.img) return alert('Картинку сначала загрузи, эээ')
+      if(!this.state.slideName) return alert('алё, а "slidename" писать кто будет?')
+
+      const markup = getMarkup({
+        ...this.state.navPanel,
+        regions: this.state.regions,
+        img: this.state.imgName,
+        slideName: this.state.slideName
+      })
+
+      this.textToCopyRef.value = markup
+      this.textToCopyRef.select()
+      document.execCommand("copy")
+  }
+
+  imgToBase64(e) {
+    const file = e.target.files[0];
+    const imgName = e.target.files[0].name
+    const reader = new FileReader();
+    reader.onloadend = () => this.setState(() => ({ imgName, img: reader.result }))
+    reader.readAsDataURL(file);
+  }
+
+  regionsChange(regions) {
+    this.setState(() => ({
+      regions
+    }))
+  }
+
+  regionRenderer({ isChanging, index, data }) {
+    const changeRegionAction = (action, props = {}) => {
+      const oldRegionsState = [...this.state.regions]
+      oldRegionsState[index].data = {
+        ...oldRegionsState[index].data,
+        name: action,
+        ...props
+      }
+      this.regionsChange(oldRegionsState)
+    }
+
+    const deleteRegion = () => {
+      // const oldRegionsState = [...this.state.regions]
+      // oldRegionsState.splice(data.index, 1)
+      // console.log(oldRegionsState, data.index)
+      // this.regionsChange(oldRegionsState)
+    }
+
+    if (!isChanging && !data.saved) {
+			return <div className="control-panel" style={{ cursor: 'default', minWidth: 300, position: 'absolute', top: '99%', left: 0, width: '94%' }}>
+        <p><span className="cp-item">action:</span></p>
+        <ul className="cp-actions-list">
+           {ACTIONS.map(action => <li key={action} onClick={() => changeRegionAction(action)}>
+              <span style={{ fontWeight: data.name === action ? 'bold' : '' }}>
+                <span style={{ display: 'block' }}>{action}</span>
+                
+                { data.name === action && action === ACTIONS[1] && 
+                  <input placeholder="slidename" 
+                    defaultValue={data.slideName} 
+                    onChange={e => changeRegionAction(action, { slideName: e.target.value })}
+                  /> 
+                }
+
+                { data.name === action && action === ACTIONS[2] && 
+                  <div>
+                    <input placeholder="sequence name" 
+                      defaultValue={data.seqName} 
+                      onChange={e => changeRegionAction(action, { seqName: e.target.value })}
+                    /> 
+
+                    <input placeholder="slide name" 
+                      defaultValue={data.slideName} 
+                      onChange={e => changeRegionAction(action, { slideName: e.target.value })}
+                    /> 
+                  </div>
+                }
+              </span>
+           </li>)}
+           <li onClick={() => changeRegionAction('data-pdf')}>
+               <span style={{ display: 'block' }}>data-pdf</span>
+
+               { data.name === 'data-pdf' && 
+                  <input placeholder="pdf name" 
+                    defaultValue={data.pdfName} 
+                    onChange={e => changeRegionAction('data-pdf', { pdfName: e.target.value })}
+                  /> 
+                }
+            </li>
+        </ul>
+        <div>
+          <button style={{ float: 'right'}} onClick={deleteRegion}>delete area</button>
+        </div>
+      </div>
+		}
+  }
+
   render() {
-    console.log(this.state.navPanel)
     return <div className="container">
-      <input type="text" style={{ padding: 5, width: 300 }} placeholder="Slidename" />
-      <img src="http://via.placeholder.com/1024x768" alt="" />
+      <textarea ref={r => this.textToCopyRef = r} style={{ position: 'absolute', top: -5000, left: -5000, opacity: 0, width: 0, height: 0 }}>{this.state.textToCopy}</textarea>
+
+      <input type="text" style={{ padding: 5, width: 300 }} placeholder="Slidename" onChange={this.changeSlideName.bind(this)} />
+      
+      { !this.state.img 
+        ? <div>
+            <img src="http://via.placeholder.com/1024x768" className="slide-img" alt="" />
+            <input className="slide-img-upload" type="file" accept=".gif, .png, .jpeg, .jpg" onChange={this.imgToBase64.bind(this)} />
+          </div>
+        : <RegionSelect 
+              className="region-select"
+              regionStyle={{background: 'rgba(255, 0, 0, 0.5)'}} 
+              regions={this.state.regions}
+              regionRenderer={this.regionRenderer.bind(this)}
+              onChange={this.regionsChange.bind(this)} 
+              constraint={true}
+            >
+          <img className="slide-img" src={this.state.img} alt="" /> 
+        </RegionSelect>
+      }
 
       <div>
           <div className="absolute-center-x nav-btn-wrap">
@@ -192,7 +334,7 @@ class App extends Component {
 
       <div>
         <br/>
-        <button onClick={() => { console.log(getMarkup(this.state.navPanel)) }}>get template</button>
+        <button onClick={this.getMarkupAndCopy.bind(this)}>get template</button>
         <br/><br/><br/>
       </div>
     </div>
